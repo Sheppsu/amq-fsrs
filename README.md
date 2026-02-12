@@ -27,5 +27,6 @@ Now how to run it yourself:
   - `uvicorn main:app` to run the app
     - you can just run only this in the future
     - the program should spit out a url to go to, which will likely be http://127.0.0.1:8000
+    - if you see something about http 500 server errors, it means the master list and/or your anime list didn't load for some reason. try stopping (ctrl+c) and starting the program again in that case.
     - there's also some other info logged when it starts up. If you see an error about logging in, try deleting the "session_cookies" file and re-running.
     - just do ctrl+c when you want to stop the program
