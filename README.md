@@ -1,6 +1,8 @@
 # amq-fsrs
 I made this thing cuz I wanted an efficient way to learn my list, so I basically just combined Anki with amq.
 
+feel free to open any issues or pull requests and I can get to them when I have some free time
+
 ## Features
 - fsrs
 - shitty minimal interface
@@ -22,5 +24,6 @@ Now how to run it yourself:
   - `py -m pip install -r requirements.txt` to install python requirements
     - this only needs to be run once to set up things
   - `uvicorn main:app` to run the app
-    - you can just run this in the future
+    - you can just run only this in the future
     - the program should spit out a url to go to, which will likely be http://127.0.0.1:8000
+    - there's also some other info logged when it starts up. If you see an error about logging in, try deleting the "session_cookies" file and re-running.
