@@ -11,9 +11,9 @@ feel free to open any issues or pull requests and I can get to them when I have 
 
 ## Running
 
-**IMPORTANT NOTE:** the program uses your AMQ login info to connect to the AMQ server, so it can get song info and stuff.
+**IMPORTANT NOTE:** the program uses your AMQ login info to connect to the AMQ server so that it can get song info, your list, etc.
 You might appear online when running the program, although I set it to set your status as offline when connecting, but I
-never actually tested if it works.
+never actually tested if it works. Also since it's logged in, you can't use the site while running the program.
 
 Now how to run it yourself:
 - just need [Python](https://www.python.org/), any decently recent version should be fine
@@ -28,3 +28,4 @@ Now how to run it yourself:
     - you can just run only this in the future
     - the program should spit out a url to go to, which will likely be http://127.0.0.1:8000
     - there's also some other info logged when it starts up. If you see an error about logging in, try deleting the "session_cookies" file and re-running.
+    - just do ctrl+c when you want to stop the program
