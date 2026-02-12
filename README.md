@@ -23,6 +23,7 @@ Now how to run it yourself:
 - open a command prompt and change your working directory to the folder you downloaded with all the files in it (e.g. main.py), then run the following:
   - `py -m pip install -r requirements.txt` to install python requirements
     - this only needs to be run once to set up things
+    - also if you're on linux or mac, the python command might be something else like `python` or `python3`
   - `uvicorn main:app` to run the app
     - you can just run only this in the future
     - the program should spit out a url to go to, which will likely be http://127.0.0.1:8000
