@@ -124,6 +124,8 @@ class AMQClient:
                     "socialStatus": 4
                 }
             })
+            _log.info("Requesting master list and anime list...")
+            await asyncio.sleep(1)
             await self.socket.emit("command", {
                 "type": "library",
                 "command": "get current master list id"
@@ -143,8 +145,6 @@ class AMQClient:
 
         await self.socket.connect(URL.SOCKET + ":" + socket_port + "/?token=" + socket_token)
 
-        _log.info("Connected with socket.io server (SID: %s)" % self.socket.sid)
-
         return True
 
     async def close(self):
@@ -156,10 +156,12 @@ class AMQClient:
 
     async def _handle_extra_messages(self, command: str, data: dict):
         if command == "get current master list id":
+            _log.info("Received master list")
             master_list_id = data["masterListId"]
             resp = await self.session.get(URL.MASTER_LIST, params={"masterId": master_list_id})
             self.trainer.set_master_list(json.loads(await resp.text()))
         elif command == "get anime status list":
+            _log.info("Received anime list")
             self.trainer.set_my_list(data["animeListMap"])
 
     async def video_host_change(self, host: str):
