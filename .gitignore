@@ -1,0 +1,5 @@
+.env
+fsrs.json
+session.json
+.idea/
+*.pyc
