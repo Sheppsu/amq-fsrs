@@ -108,7 +108,11 @@ class Trainer:
         self.ann_song_info = {}
         my_ann_songs = set()
         for anime_id in self.my_anime_list:
-            songs = self.master_list["animeMap"][anime_id]["songLinks"]
+            anime_map = self.master_list["animeMap"]
+            anime_info = anime_map.get(anime_id)
+            if anime_info is None:
+                continue
+            songs = anime_info["songLinks"]
             for song in songs["OP"] + songs["ED"] + songs["INS"]:
                 if song["uploaded"] == 0:
                     continue
