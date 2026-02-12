@@ -4,3 +4,4 @@ pydantic==2.12.5
 aiohttp==3.13.3
 python-socketio==5.16.0
 fsrs==6.3.0
+uvicorn==0.40.0
