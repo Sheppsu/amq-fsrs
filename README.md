@@ -18,6 +18,7 @@ never actually tested if it works. Also since it's logged in, you can't use the 
 Now how to run it yourself:
 - just need [Python](https://www.python.org/), any decently recent version should be fine
 - download the code (either with `git clone https://github.com/sheppsu/amq-fsrs` or the green "Code" button on github)
+  - I recommend using git because it'll be easier to update things when changes are pushed to the code (using `git pull`)
 - make a copy of "template.env" and name it ".env"
   - fill in your username, password, and any other options in there
 - open a command prompt and change your working directory to the folder you downloaded with all the files in it (e.g. main.py), then run the following:
