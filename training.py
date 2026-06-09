@@ -228,6 +228,9 @@ class Trainer:
         )
         insert_sorted(self.existing_cards, reviewed_card)
         self.review_logs.append(review_log)
+        # limit number of review logs saved
+        while len(self.review_logs) > 1000:
+            self.review_logs.pop(0)
         self.current_card = None
 
         # probably better to only try and optimize after going through some amount
