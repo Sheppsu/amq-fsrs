@@ -127,7 +127,7 @@ const EQUIVALENT_CHARS = [
     ["é", "e"]
 ]
 function sanitizeTitle(title) {
-    let text = title.toLowerCase();
+    let text = title.toLowerCase().trim();
     for (const [replacedChar, newChar] of EQUIVALENT_CHARS) {
         text = text.replace(replacedChar, newChar);
     }
@@ -174,24 +174,31 @@ function updateDropdownSelection(clear) {
         return;
     }
 
-    const text = answerBox.value.trim().toLowerCase();
+    const text = sanitizeTitle(answerBox.value);
     if (text.length === 0) {
         return;
     }
 
-    let matches = 0
+	const startMatches = [];
+	const otherMatches = [];
     for (const [i, anime] of Object.entries(cleanAnimeList)) {
-        if (anime.includes(text)) {
-            const correctName = animeList[parseInt(i)]
-            dropdownSelection.appendChild(createDropdownChoice(correctName));
-            currentOptions.push(correctName);
-
-            matches += 1
-            if (matches === 20) {
-                return;
-            }
+		if (anime.startsWith(text)) {
+			startMatches.push(animeList[parseInt(i)])
+			
+			if (startMatches.length == 20) {
+				break;
+			}
+		}
+        else if (anime.includes(text)) {
+            otherMatches.push(animeList[parseInt(i)])
         }
     }
+	
+	currentOptions = startMatches.slice(0, startMatches.length).concat(otherMatches.slice(0, 20 - startMatches.length));
+	
+	for (const match of currentOptions) {
+		dropdownSelection.appendChild(createDropdownChoice(match));
+	}
 }
 
 function goToNextState() {
