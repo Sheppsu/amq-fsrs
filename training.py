@@ -11,33 +11,6 @@ from fsrs import Scheduler, Card, ReviewLog, Rating, Optimizer
 log = logging.getLogger(__name__)
 
 
-# with open("masterlist.json", encoding="utf-8") as f:
-#     masterlist = json.load(f)
-#     song_id_to_anime_ids = defaultdict(list)
-#     for anime in masterlist["animeMap"].values():
-#         songs = anime["songLinks"]
-#         for song in songs["OP"] + songs["ED"] + songs["INS"]:
-#             for name in anime["names"]:
-#                 song_id_to_anime_ids[song["songId"]].append(anime["annId"])
-#
-# with open("mylist.json", encoding="utf-8") as f:
-#     mylist = json.load(f)
-#     mylist = [anime_id for anime_id, status in mylist.items() if status != 5]
-#     ann_song_info = {}
-#     my_ann_songs = set()
-#     my_songs = set()
-#     for anime_id in mylist:
-#         songs = masterlist["animeMap"][anime_id]["songLinks"]
-#         for song in songs["OP"] + songs["ED"] + songs["INS"]:
-#             if song["uploaded"] == 0:
-#                 continue
-#             my_ann_songs.add(song["annSongId"])
-#             ann_song_info[song["annSongId"]] = song
-#             my_songs.add(song["songId"])
-#     my_ann_songs = list(my_ann_songs)
-#     my_songs = list(my_songs)
-
-
 def insert_sorted(cards: list[Card], new_card: Card):
     inserted = False
     for i, card in enumerate(cards):
@@ -75,6 +48,11 @@ class Trainer:
         self.my_ann_songs = None
         self.song_id_to_anime_ids = None
         self.ann_song_info = None
+        
+        # arbitrary number of logs to have before using optimization
+        if len(self.review_logs) >= 50:
+            self.optimize_scheduler()
+            self.save_fsrs_data()
 
     @property
     def is_ready(self):
@@ -233,10 +211,9 @@ class Trainer:
             self.review_logs.pop(0)
         self.current_card = None
 
-        # probably better to only try and optimize after going through some amount
-        if len(self.review_logs) >= 50:
-            self.optimize_scheduler()
-
+        self.save_fsrs_data()
+    
+    def save_fsrs_data(self):
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump({
                 "scheduler": self.scheduler.to_json(),
