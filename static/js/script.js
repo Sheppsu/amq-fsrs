@@ -20,9 +20,15 @@ let reviewing = false;
 let songStartPoint = null;
 let paused = true;
 let loadingNext = false;
+let fetchingNext = false;
 
 
 async function getNextAnime() {
+	if (fetchingNext) {
+		return;
+	}
+	fetchingNext = true;
+	
     const resp = await fetch("/next");
     const data = await resp.json();
     let filename = data.song.fileName;
@@ -34,6 +40,9 @@ async function getNextAnime() {
             filename = filenames["480"];
         }
     }
+	
+	fetchingNext = false;
+	
     return {
         animeInfo: animeData[data.song.annId],
         answers: data.answers,
