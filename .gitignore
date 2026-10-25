@@ -1,6 +1,5 @@
 .env
-fsrs.json
-session.json
+*.json
 .idea/
 *.pyc
 session_cookies

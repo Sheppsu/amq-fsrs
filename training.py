@@ -11,15 +11,22 @@ from fsrs import Scheduler, Card, ReviewLog, Rating, Optimizer
 log = logging.getLogger(__name__)
 
 
-def insert_sorted(cards: list[Card], new_card: Card):
-    inserted = False
-    for i, card in enumerate(cards):
-        if new_card.due <= card.due:
-            cards.insert(i, new_card)
-            inserted = True
-            break
-    if not inserted:
-        cards.append(new_card)
+def insert_sorted(songs: list["AnimeSong"], new_song: "AnimeSong"):
+    # sorted low to high
+    if len(songs) == 0:
+        songs.append(new_song)
+        return
+
+    low = 0
+    high = len(songs)
+    while low < high:
+        mid = (low + high) // 2
+        if new_song < songs[mid]:
+            high = mid
+        else:
+            low = mid + 1
+
+    songs.insert(low, new_song)
 
 
 def get_rating(answer_time: int | None):
@@ -32,31 +39,109 @@ def get_rating(answer_time: int | None):
     return Rating.Hard
 
 
+class AnimeSong:
+    __slots__ = ("card", "anime_id", "list_status", "type", "is_rebroadcast", "is_dub")
+
+    def __init__(self, card: Card, anime_id: int, list_status: int, song_type: int, is_rebroadcast: bool, is_dub: bool):
+        self.card: Card = card
+        self.anime_id: int = anime_id
+        self.list_status: int = list_status  # 1 = watching, 2 = complete, 3 = hold, 4 = dropped, 5 = ptw
+        self.type: int = song_type  # 1 = op, 2 = ed, 3 = ins
+        self.is_rebroadcast: bool = is_rebroadcast
+        self.is_dub: bool = is_dub
+
+    def __le__(self, other):
+        return self.card.due <= other.card.due
+
+    def __lt__(self, other):
+        return self.card.due < other.card.due
+
+    def __gt__(self, other):
+        return self.card.due > other.card.due
+
+    def __ge__(self, other):
+        return self.card.due >= other.card.due
+
+    def to_dict(self):
+        pass
+
+
+def check_filter(filter_type: int, boolean: bool):
+    if filter_type == 1:
+        return True
+    if boolean:
+        return filter_type == 2
+    return filter_type == 3
+
+
+class Settings:
+    __slots__ = ("path", "status_types", "song_types" , "dub_filter", "rebroadcast_filter")
+
+    def __init__(self, path: str, settings: dict):
+        self.path: str = path
+        self.apply(settings)
+
+    def apply(self, settings):
+        self.status_types = settings.get("status_types", [1, 2, 3, 4])
+        self.song_types = settings.get("song_types", [1, 2, 3])
+        # for filter ones
+        # 1 = any
+        # 2 = yes
+        # 3 = no
+        self.dub_filter = settings.get("dub_filter", 1)
+        self.rebroadcast_filter = settings.get("rebroadcast_filter", 1)
+
+    def matches_filter(self, song: AnimeSong):
+        return (
+            song.list_status in self.status_types
+            and song.type in self.song_types
+            and check_filter(self.dub_filter, song.is_dub)
+            and check_filter(self.rebroadcast_filter, song.is_rebroadcast)
+        )
+
+    @classmethod
+    def from_path_or_default(cls, path: str):
+        if not os.path.exists(path):
+            return cls(path, {})
+        with open(path, "r") as f:
+            settings = json.load(f)
+            return cls(path, settings)
+
+    def save(self):
+        with open(self.path, "w") as f:
+            json.dump(self.to_dict(), f)
+
+    def to_dict(self):
+        return {
+            "status_types": self.status_types,
+            "song_types": self.song_types,
+            "dub_filter": self.dub_filter,
+            "rebroadcast_filter": self.rebroadcast_filter,
+        }
+
+
 class Trainer:
-    def __init__(self, path, scheduler, existing_cards, new_cards, review_logs, include_planned):
+    SAVE_VERSION = 2
+
+    def __init__(self, path, scheduler, existing_cards, new_cards, review_logs, settings):
         self.path: str = path
         self.scheduler: Scheduler = scheduler
         self.existing_cards: list[Card] = sorted(existing_cards, key=lambda c: c.due)
-        self.new_cards: list[Card] = sorted(new_cards, key=lambda c: c.due)
-        self.review_logs: list[ReviewLog] = review_logs
-        self.include_planned = include_planned
+        self.new_cards: list[Card] = new_cards
+        self.existing_songs: list[AnimeSong] = []
+        self.new_songs: list[AnimeSong] = []
+        self.filtered_existing_songs: list[AnimeSong] = []
+        self.filtered_new_songs: list[AnimeSong] = []
+        self.review_logs: dict[int, list[ReviewLog]] = review_logs
+        self.settings: Settings = settings
 
-        self.current_card: Card | None = None
+        self.current_song: AnimeSong | None = None
 
         self.master_list = None
         self.my_anime_list = None
-        self.my_ann_songs = None
         self.song_id_to_anime_ids = None
         self.ann_song_info = None
-        
-        # arbitrary number of logs to have before using optimization
-        if len(self.review_logs) >= 50:
-            self.optimize_scheduler()
-            self.save_fsrs_data()
-
-    @property
-    def is_ready(self):
-        return self.master_list is not None and self.my_anime_list is not None
+        self.is_ready = False
 
     def set_master_list(self, master_list):
         self.master_list = master_list
@@ -67,25 +152,26 @@ class Trainer:
                 self.song_id_to_anime_ids[song["songId"]].append(anime["annId"])
 
         log.info("Master list loaded")
-        if self.is_ready:
+        if self.my_anime_list is not None:
             self.on_lists_loaded()
 
     def set_my_list(self, my_list):
-        self.my_anime_list = [
-            anime_id
-            for anime_id, status in my_list.items()
-            if self.include_planned or status != 5
-        ]
+        self.my_anime_list = my_list
 
         log.info("Anime list loaded")
-        if self.is_ready:
+        if self.master_list is not None:
             self.on_lists_loaded()
 
     def on_lists_loaded(self):
+        if self.is_ready:
+            return
+
+        log.info("Organizing data...")
+
         # get information about songs into a more easily usable format
         self.ann_song_info = {}
         my_ann_songs = set()
-        for anime_id in self.my_anime_list:
+        for anime_id, list_status in self.my_anime_list.items():
             anime_map = self.master_list["animeMap"]
             anime_info = anime_map.get(anime_id)
             if anime_info is None:
@@ -95,36 +181,107 @@ class Trainer:
                 if song["uploaded"] == 0:
                     continue
                 my_ann_songs.add(song["annSongId"])
+                song["annId"] = anime_id
                 self.ann_song_info[song["annSongId"]] = song
-        self.my_ann_songs = list(my_ann_songs)
 
-        # randomly add in missing cards
-        for ann_song_id in random.sample(self.my_ann_songs, len(self.my_ann_songs)):
-            if not any((card.card_id == ann_song_id for card in self.new_cards + self.existing_cards)):
+        new_card_dict = {card.card_id: card for card in self.new_cards}
+        existing_card_dict = {card.card_id: card for card in self.existing_cards}
+
+        # add in missing cards
+        for ann_song_id in my_ann_songs:
+            if new_card_dict.get(ann_song_id) is None and existing_card_dict.get(ann_song_id) is None:
                 self.new_cards.append(Card(ann_song_id))
 
-        log.info("Everything successfully loaded")
+        # populate self.new_songs and self.existing_songs
+        for card in self.existing_cards:
+            song_info = self.ann_song_info[card.card_id]
+            anime_id = song_info["annId"]
+            list_status = self.my_anime_list[anime_id]
+            self.existing_songs.append(
+                AnimeSong(
+                    card,
+                    anime_id,
+                    list_status,
+                    song_info["type"],
+                    song_info["rebroadcast"] == 1,
+                    song_info["dub"] == 1
+                )
+            )
+        for card in self.new_cards:
+            song_info = self.ann_song_info[card.card_id]
+            anime_id = song_info["annId"]
+            list_status = self.my_anime_list[anime_id]
+            self.new_songs.append(
+                AnimeSong(
+                    card,
+                    anime_id,
+                    list_status,
+                    song_info["type"],
+                    song_info["rebroadcast"] == 1,
+                    song_info["dub"] == 1
+                )
+            )
+
+        self.existing_cards = []
+        self.new_cards = []
+        self.update_filtered_songs()
+
+        log.info("Running optimizer...")
+        self.optimize_scheduler()
+
+        self.is_ready = True
 
     @classmethod
-    def from_path(cls, path):
+    def from_path(cls, path: str, settings_path: str):
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-                scheduler = Scheduler.from_json(data["scheduler"])
-                existing_cards = list(map(Card.from_json, data["existing_cards"]))
-                new_cards = list(map(Card.from_json, data["new_cards"]))
-                review_logs = list(map(ReviewLog.from_json, data["review_logs"]))
+                version = data.get("version", 1)
+                if version > 1:
+                    scheduler = Scheduler.from_dict(data["scheduler"])
+                    existing_cards = list(map(Card.from_dict, data["existing_cards"]))
+                    new_cards = list(map(Card.from_dict, data["new_cards"]))
+                    review_logs = {
+                        int(anime_id): list(map(ReviewLog.from_dict, logs))
+                        for anime_id, logs in data["review_logs"].items()
+                    }
+                else:
+                    scheduler = Scheduler.from_json(data["scheduler"])
+                    existing_cards = list(map(Card.from_json, data["existing_cards"]))
+                    new_cards = list(map(Card.from_json, data["new_cards"]))
+                    review_logs_list = list(map(ReviewLog.from_json, data["review_logs"]))
+                    review_logs = {}
+                    for review_log in review_logs_list:
+                        l = review_logs.get(review_log.card_id)
+                        if l is None:
+                            review_logs[review_log.card_id] = [review_log]
+                        else:
+                            l.append(review_log)
+
         except FileNotFoundError:
             scheduler = Scheduler()
             existing_cards = []
             new_cards = []
-            review_logs = []
+            review_logs = {}
 
-        include_planned = bool(int(os.getenv("INCLUDE_PLANNED")))
-        if include_planned is None:
-            include_planned = False
+        settings = Settings.from_path_or_default(settings_path)
+        return cls(path, scheduler, existing_cards, new_cards, review_logs, settings)
 
-        return cls(path, scheduler, existing_cards, new_cards, review_logs, include_planned)
+    def save_fsrs_data(self):
+        if not self.is_ready:
+            return
+
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({
+                "version": self.SAVE_VERSION,
+                "scheduler": self.scheduler.to_dict(),
+                "new_cards": list((song.card.to_dict() for song in self.new_songs)),  # type: ignore
+                "existing_cards": list((song.card.to_dict() for song in self.existing_songs)),  # type: ignore
+                "review_logs": {
+                    anime_id: list(map(ReviewLog.to_dict, logs))  # type: ignore
+                    for anime_id, logs in self.review_logs.items()
+                },
+            }, f)
 
     def get_song_info(self, song_id):
         info = self.master_list["songMap"][str(song_id)]
@@ -151,73 +308,86 @@ class Trainer:
         return self.ann_song_info[ann_song_id]
 
     def get_next_song(self) -> int | None:
-        if self.current_card is not None:
-            if self.current_card.last_review is None:
-                self.new_cards.append(self.current_card)
+        # return current song to respective list
+        if self.current_song is not None:
+            if self.current_song.card.last_review is None:
+                self.new_songs.append(self.current_song)
+                if self.settings.matches_filter(self.current_song):
+                    self.filtered_new_songs.append(self.current_song)
             else:
-                insert_sorted(self.existing_cards, self.current_card)
+                insert_sorted(self.existing_songs, self.current_song)
+                if self.settings.matches_filter(self.current_song):
+                    insert_sorted(self.filtered_existing_songs, self.current_song)
 
         now = datetime.now(tz=timezone.utc)
-        if len(self.existing_cards) > 0 and self.existing_cards[0].due <= now:
-            self.current_card = self.existing_cards.pop(0)
-        elif len(self.new_cards) > 0:
-            self.current_card = self.new_cards.pop(random.randint(0, len(self.new_cards) - 1))
+        if len(self.filtered_existing_songs) > 0 and self.filtered_existing_songs[0].card.due <= now:
+            self.current_song = self.filtered_existing_songs.pop(0)
+            self.existing_songs.remove(self.current_song)
+        elif len(self.filtered_new_songs) > 0:
+            self.current_song = self.filtered_new_songs.pop(random.randint(0, len(self.filtered_new_songs) - 1))
+            self.new_songs.remove(self.current_song)
         else:
             return
-        return self.current_card.card_id
+        return self.current_song.card.card_id
 
     def get_schedule_info(self):
         cards_due = 0
         now = datetime.now(tz=timezone.utc)
-        for card in self.existing_cards:
-            if card.due <= now:
+        # TODO: use binary search
+        for song in self.filtered_existing_songs:
+            if song.card.due <= now:
                 cards_due += 1
             else:
                 break
 
         return {
-            "cards_due": cards_due + (1 if self.current_card is not None and self.current_card.last_review is not None else 0),
-            "new_cards": len(self.new_cards),
-            "total_cards": len(self.existing_cards) + len(self.new_cards) + (1 if self.current_card is not None else 0)
+            "cards_due": cards_due + (1 if self.current_song is not None and self.current_song.card.last_review is not None else 0),
+            "new_cards": len(self.filtered_new_songs),
+            "total_cards": len(self.filtered_existing_songs) + len(self.filtered_new_songs) + (1 if self.current_song is not None else 0)
         }
 
     def optimize_scheduler(self):
         start = time.monotonic()
 
-        optimizer = Optimizer(self.review_logs)
+        optimizer = Optimizer(sum(self.review_logs.values(), []))
         optimal_params = optimizer.compute_optimal_parameters()
         self.scheduler = Scheduler(optimal_params)
-
-        mapped_review_logs = {card.card_id: [] for card in self.existing_cards}
-        for review_log in self.review_logs:
-            mapped_review_logs[review_log.card_id].append(review_log)
-        self.existing_cards = sorted((
-            self.scheduler.reschedule_card(card, mapped_review_logs[card.card_id])
-            for card in self.existing_cards
-        ), key=lambda card: card.due)
+        for song in self.existing_songs:
+            song.card = self.scheduler.reschedule_card(song.card, self.review_logs[song.card.card_id])
+        self.existing_songs = sorted(self.existing_songs)
+        self.filtered_existing_songs = sorted(self.filtered_existing_songs)
 
         log.info(f"Optimizer took {round(time.monotonic() - start, 2)} seconds")
 
     def save_result(self, answer_time: int | None):
         reviewed_card, review_log = self.scheduler.review_card(
-            self.current_card,
+            self.current_song.card,
             get_rating(answer_time),
             review_duration=answer_time
         )
-        insert_sorted(self.existing_cards, reviewed_card)
-        self.review_logs.append(review_log)
-        # limit number of review logs saved
-        while len(self.review_logs) > 1000:
-            self.review_logs.pop(0)
-        self.current_card = None
+
+        self.current_song.card = reviewed_card
+        insert_sorted(self.existing_songs, self.current_song)
+        if self.settings.matches_filter(self.current_song):
+            insert_sorted(self.filtered_existing_songs, self.current_song)
+        self.current_song = None
+
+        l = self.review_logs.get(reviewed_card.card_id)
+        if l is not None:
+            l.append(review_log)
+            # limit number of review logs saved
+            while len(l) > 5:
+                l.pop(0)
+        else:
+            self.review_logs[reviewed_card.card_id] = [review_log]
 
         self.save_fsrs_data()
-    
-    def save_fsrs_data(self):
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump({
-                "scheduler": self.scheduler.to_json(),
-                "new_cards": list(map(Card.to_json, self.new_cards)),  # type: ignore
-                "existing_cards": list(map(Card.to_json, self.existing_cards)),  # type: ignore
-                "review_logs": list(map(ReviewLog.to_json, self.review_logs)),  # type: ignore
-            }, f)
+
+    def apply_settings(self, settings: dict):
+        self.settings.apply(settings)
+        self.settings.save()
+        self.update_filtered_songs()
+
+    def update_filtered_songs(self):
+        self.filtered_new_songs = [song for song in self.new_songs if self.settings.matches_filter(song)]
+        self.filtered_existing_songs = [song for song in self.existing_songs if self.settings.matches_filter(song)]

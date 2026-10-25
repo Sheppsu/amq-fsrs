@@ -7,6 +7,27 @@ const answerText = document.getElementById("answer-text");
 const videoCover = document.getElementById("video-player-cover");
 const scheduleInfo = document.getElementById("schedule-info");
 const playbackBtn = document.getElementById("playback-btn");
+const settingsBtn = document.getElementById("settings-btn");
+const settingsPanel = document.getElementById("settings-panel");
+const settingsApplyBtn = document.getElementById("settings-apply-btn");
+const settingsOptions = {
+    status: [
+        document.getElementById("setting-status-watching"),
+        document.getElementById("setting-status-completed"),
+        document.getElementById("setting-status-hold"),
+        document.getElementById("setting-status-dropped"),
+        document.getElementById("setting-status-ptw")
+    ],
+    songInfo: {
+        types: [
+            document.getElementById("setting-song-op"),
+            document.getElementById("setting-song-ed"),
+            document.getElementById("setting-song-ins")
+        ],
+        dubbed: document.getElementById("setting-song-dubbed"),
+        rebroadcast: document.getElementById("setting-song-rebroadcast")
+    }
+}
 
 const PLAY_DURATION = 20;
 
@@ -194,7 +215,7 @@ function updateDropdownSelection(clear) {
 		if (anime.startsWith(text)) {
 			startMatches.push(animeList[parseInt(i)])
 			
-			if (startMatches.length == 20) {
+			if (startMatches.length === 20) {
 				break;
 			}
 		}
@@ -302,7 +323,28 @@ function stopTimer() {
     }
 }
 
+function loadSettings() {
+    fetch("/settings").then((resp) => resp.json()).then((data) => {
+        for (const option of settingsOptions.status) {
+            option.checked = false;
+        }
+        for (const i of data.status_types) {
+            settingsOptions.status[i - 1].checked = true;
+        }
+        for (const option of settingsOptions.songInfo.types) {
+            option.checked = false;
+        }
+        for (const i of data.song_types) {
+            settingsOptions.songInfo.types[i - 1].checked = true;
+        }
+        settingsOptions.songInfo.dubbed.value = data.dub_filter;
+        settingsOptions.songInfo.rebroadcast.value = data.rebroadcast_filter;
+    });
+}
+
 export function setup() {
+    loadSettings();
+
     fetch("/anime").then((resp) => resp.json().then(setupAnswerBox));
 
     player.volume = 0.2;
@@ -327,8 +369,6 @@ export function setup() {
         player.volume = volumeSlider.value;
     });
 
-    showScheduleInfo();
-
     playbackBtn.addEventListener("click", () => {
         paused = !paused;
         if (timeoutId === null && !loadingNext) {
@@ -337,5 +377,51 @@ export function setup() {
         playbackBtn.innerText = paused ? "unpause" : "pause";
     });
 
+    settingsBtn.addEventListener("click", () => {
+        if (settingsPanel.classList.contains("hide")) {
+            settingsPanel.classList.remove("hide");
+        } else {
+            settingsPanel.classList.add("hide");
+        }
+    });
+    let debounce = false;
+    settingsApplyBtn.addEventListener("click", () => {
+        if (debounce) {
+            return;
+        }
+        debounce = true;
+
+        const settings = {
+            status_types: [],
+            song_types: []
+        }
+        for (let i=0; i<settingsOptions.status.length; i++) {
+            if (settingsOptions.status[i].checked) {
+                settings.status_types.push(i + 1);
+            }
+        }
+        for (let i=0; i<settingsOptions.songInfo.types.length; i++) {
+            if (settingsOptions.songInfo.types[i].checked) {
+                settings.song_types.push(i + 1);
+            }
+        }
+        settings.dub_filter = settingsOptions.songInfo.dubbed.value;
+        settings.rebroadcast_filter = settingsOptions.songInfo.rebroadcast.value;
+
+        fetch("/settings", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(settings)
+        }).then((resp) => {
+            if (resp.status === 200) {
+                showScheduleInfo()
+            }
+            debounce = false;
+        }).catch(() => debounce = false);
+    });
+
+    showScheduleInfo();
     setInterval(showScheduleInfo, 5000);
 }

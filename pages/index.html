@@ -8,6 +8,60 @@
     </head>
     <body>
         <div id="header">
+			<button id="settings-btn">settings</button>
+			<div id="settings-panel" class="hide">
+                <h2 class="settings-section-heading">List Status</h2>
+                <label>
+                    Watching
+                    <input id="setting-status-watching" type="checkbox">
+                </label>
+                <label>
+                    Completed
+                    <input id="setting-status-completed" type="checkbox">
+                </label>
+                <label>
+                    On hold
+                    <input id="setting-status-hold" type="checkbox">
+                </label>
+                <label>
+                    Dropped
+                    <input id="setting-status-dropped" type="checkbox">
+                </label>
+                <label>
+                    Plan to watch
+                    <input id="setting-status-ptw" type="checkbox">
+                </label>
+                <h2 class="settings-section-heading">Song type</h2>
+                <label>
+                    Openings
+                    <input id="setting-song-op" type="checkbox">
+                </label>
+                <label>
+                    Endings
+                    <input id="setting-song-ed" type="checkbox">
+                </label>
+                <label>
+                    Inserts
+                    <input id="setting-song-ins" type="checkbox">
+                </label>
+                <label>
+                    Dubbed
+                    <select id="setting-song-dubbed">
+                        <option value="1">Any</option>
+                        <option  value="3">No dubs</option>
+                        <option  value="2">Only dubs</option>
+                    </select>
+                </label>
+                <label>
+                    Rebroadcasts
+                    <select id="setting-song-rebroadcast">
+                        <option  value="1">Any</option>
+                        <option  value="3">No rebroadcasts</option>
+                        <option  value="2">Only rebroadcasts</option>
+                    </select>
+                </label>
+                <button id="settings-apply-btn">apply</button>
+            </div>
             <button id="playback-btn">unpause</button>
             <input id="volume-slider" type="range" min="0" max="1" step="0.01" />
             <p id="answer-text"></p>

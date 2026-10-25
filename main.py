@@ -20,19 +20,15 @@ log = logging.getLogger(__name__)
 dotenv.load_dotenv()
 
 log.info("Loading fsrs trainer...")
-trainer = training.Trainer.from_path("fsrs.json")
-log.info("Loaded fsrs trainer")
+trainer = training.Trainer.from_path("fsrs.json", "settings.json")
 amq_client: AMQClient = AMQClient(os.getenv("AMQ_USERNAME"), trainer)
 
 
 async def run_amq_client():
-    log.info("Logging into AMQ...")
     if not await amq_client.login(os.getenv("AMQ_PASSWORD")):
         return
-    log.info("Connecting to AMQ server...")
     if not await amq_client.connect():
         return
-    log.info("Successfully connected to AMQ server")
 
 
 @asynccontextmanager
@@ -103,3 +99,28 @@ async def schedule_info():
     if not trainer.is_ready:
         return Response(status_code=500)
     return trainer.get_schedule_info()
+
+
+class Settings(BaseModel):
+    status_types: list[int]
+    song_types: list[int]
+    dub_filter: int
+    rebroadcast_filter: int
+
+
+@app.post("/settings")
+async def apply_settings(settings: Settings):
+    if not trainer.is_ready:
+        return Response(status_code=500)
+    trainer.apply_settings({
+        "status_types": settings.status_types,
+        "song_types": settings.song_types,
+        "dub_filter": settings.dub_filter,
+        "rebroadcast_filter": settings.rebroadcast_filter
+    })
+    return "OK"
+
+
+@app.get("/settings")
+async def get_settings():
+    return trainer.settings.to_dict()

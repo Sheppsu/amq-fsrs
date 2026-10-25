@@ -60,8 +60,10 @@ class AMQClient:
 
     async def login(self, password: str):
         if self.logged_in:
+            _log.info("Retrieved previous AMQ session")
             return True
 
+        _log.info("Logging into AMQ...")
         data = {
             "username": self.username,
             "password": password,
@@ -82,6 +84,7 @@ class AMQClient:
         return False
 
     async def _get_socket_info(self):
+        _log.info("Fetching AMQ server info...")
         resp = await self.session.get(URL.SOCKET_TOKEN)
         if resp.status == 200:
             data = json.loads(await resp.text())
@@ -98,7 +101,7 @@ class AMQClient:
         socket_info = await self._get_socket_info()
         if socket_info is None:
             return False
-        _log.info("Socket token retrieved")
+        _log.info("Connecting to AMQ server...")
         socket_token, socket_port = socket_info
 
         self.socket = sio.AsyncClient()
@@ -144,6 +147,7 @@ class AMQClient:
             _log.warning("Disconnected: %s" % reason)
 
         await self.socket.connect(URL.SOCKET + ":" + socket_port + "/?token=" + socket_token)
+        _log.info("Successfully connected to AMQ server")
 
         return True
 
