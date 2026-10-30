@@ -4,6 +4,7 @@ const dropdownSelection = document.getElementById("anime-dropdown");
 const volumeSlider = document.getElementById("volume-slider");
 const videoPlayerTimer = document.getElementById("video-player-timer");
 const answerText = document.getElementById("answer-text");
+const alternateAnswers = document.getElementById("alternate-answers-box");
 const videoCover = document.getElementById("video-player-cover");
 const scheduleInfo = document.getElementById("schedule-info");
 const playbackBtn = document.getElementById("playback-btn");
@@ -129,6 +130,13 @@ function review() {
     player.play();
 
     answerText.innerText = currentAnime[0];
+    removeChildren(alternateAnswers);
+    for (const answer of currentAnswers) {
+        const p = document.createElement("p");
+        p.innerText = answer;
+        p.classList.add("alternate-answer");
+        alternateAnswers.appendChild(p)
+    }
     answerBox.disabled = true;
     videoCover.classList.add("hide");
     getCurrentSongInfo().then((info) => {
@@ -182,11 +190,6 @@ function submitAnswer(text) {
         answerBox.classList.add("result-wrong");
     } else {
         answerBox.classList.add("result-correct");
-    }
-
-    console.log("########## ANSWERS #############");
-    for (const answer of currentAnswers) {
-        console.log(answer);
     }
 }
 
@@ -420,6 +423,13 @@ export function setup() {
             }
             debounce = false;
         }).catch(() => debounce = false);
+    });
+
+    answerText.addEventListener("mouseenter", () => {
+        alternateAnswers.classList.remove("hide");
+    })
+    answerText.addEventListener("mouseleave", () => {
+        alternateAnswers.classList.add("hide");
     });
 
     showScheduleInfo();

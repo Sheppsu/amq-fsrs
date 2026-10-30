@@ -164,3 +164,25 @@ body {
 .hide {
   display: none !important;
 }
+
+#alternate-answers-box {
+  width: 500px;
+  max-width: 90vw;
+
+  position: absolute;
+  top: 50px;
+  left: calc(50% - min(90vw, 500px) / 2);
+  padding: 10px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  background-color: var(--fg-color);
+  text-align: center;
+  z-index: 15;
+}
+
+.alternate-answer {
+  margin: 0;
+}
