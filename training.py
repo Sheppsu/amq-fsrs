@@ -349,11 +349,18 @@ class Trainer:
     def optimize_scheduler(self):
         start = time.monotonic()
 
-        optimizer = Optimizer(sum(self.review_logs.values(), []))
-        optimal_params = optimizer.compute_optimal_parameters()
-        self.scheduler = Scheduler(optimal_params)
+        all_logs = [rl for logs in self.review_logs.values() for rl in logs]
+        try:
+            optimizer = Optimizer(all_logs)
+            params = optimizer.compute_optimal_parameters()
+        except:
+            log.exception("Optimizer failed, keeping current parameters")
+            params = self.scheduler.parameters
+        self.scheduler = Scheduler(params)
         for song in self.existing_songs:
-            song.card = self.scheduler.reschedule_card(song.card, self.review_logs[song.card.card_id])
+            logs = self.review_logs.get(song.card.card_id)
+            if logs:
+                song.card = self.scheduler.reschedule_card(song.card, logs)
         self.existing_songs = sorted(self.existing_songs)
         self.filtered_existing_songs = sorted(self.filtered_existing_songs)
 
