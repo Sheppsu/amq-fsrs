@@ -375,9 +375,6 @@ class Trainer:
         l = self.review_logs.get(reviewed_card.card_id)
         if l is not None:
             l.append(review_log)
-            # limit number of review logs saved
-            while len(l) > 5:
-                l.pop(0)
         else:
             self.review_logs[reviewed_card.card_id] = [review_log]
 
