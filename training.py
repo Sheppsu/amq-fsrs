@@ -3,7 +3,7 @@ import random
 import time
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from fsrs import Scheduler, Card, ReviewLog, Rating, Optimizer
 
@@ -122,6 +122,7 @@ class Settings:
 
 class Trainer:
     SAVE_VERSION = 2
+    LEARN_BUFFER = 10
 
     def __init__(self, path, scheduler, existing_cards, new_cards, review_logs, settings):
         self.path: str = path
@@ -132,6 +133,7 @@ class Trainer:
         self.new_songs: list[AnimeSong] = []
         self.filtered_existing_songs: list[AnimeSong] = []
         self.filtered_new_songs: list[AnimeSong] = []
+        self.learning_songs: list[AnimeSong] = []
         self.review_logs: dict[int, list[ReviewLog]] = review_logs
         self.settings: Settings = settings
 
@@ -194,7 +196,9 @@ class Trainer:
 
         # populate self.new_songs and self.existing_songs
         for card in self.existing_cards:
-            song_info = self.ann_song_info[card.card_id]
+            song_info = self.ann_song_info.get(card.card_id)
+            if song_info is None:
+                continue
             anime_id = song_info["annId"]
             list_status = self.my_anime_list[anime_id]
             self.existing_songs.append(
@@ -208,7 +212,9 @@ class Trainer:
                 )
             )
         for card in self.new_cards:
-            song_info = self.ann_song_info[card.card_id]
+            song_info = self.ann_song_info.get(card.card_id)
+            if song_info is None:
+                continue
             anime_id = song_info["annId"]
             list_status = self.my_anime_list[anime_id]
             self.new_songs.append(
@@ -320,13 +326,26 @@ class Trainer:
                     insert_sorted(self.filtered_existing_songs, self.current_song)
 
         now = datetime.now(tz=timezone.utc)
-        if len(self.filtered_existing_songs) > 0 and self.filtered_existing_songs[0].card.due <= now:
+        # if already "learning" 10 songs, grab one of those
+        if len(self.learning_songs) >= self.LEARN_BUFFER:
+            self.current_song = self.learning_songs.pop(0)
+            self.filtered_existing_songs.remove(self.current_song)
+            self.existing_songs.remove(self.current_song)
+        # try to grab a due card
+        elif len(self.filtered_existing_songs) > 0 and self.filtered_existing_songs[0].card.due <= now:
             self.current_song = self.filtered_existing_songs.pop(0)
             self.existing_songs.remove(self.current_song)
+            # possibly in self.learning_songs too
+            try:
+                self.learning_songs.remove(self.current_song)
+            except ValueError:
+                pass
+        # try to grab a new card
         elif len(self.filtered_new_songs) > 0:
             self.current_song = self.filtered_new_songs.pop(random.randint(0, len(self.filtered_new_songs) - 1))
             self.new_songs.remove(self.current_song)
         else:
+            # nothing to grab
             return
         return self.current_song.card.card_id
 
@@ -377,6 +396,10 @@ class Trainer:
         insert_sorted(self.existing_songs, self.current_song)
         if self.settings.matches_filter(self.current_song):
             insert_sorted(self.filtered_existing_songs, self.current_song)
+            # if supposed to review in less than 24 hours, count as "learning"
+            now = datetime.now(tz=timezone.utc)
+            if self.current_song.card.due - now < timedelta(days=1):
+                insert_sorted(self.learning_songs, self.current_song)
         self.current_song = None
 
         l = self.review_logs.get(reviewed_card.card_id)
