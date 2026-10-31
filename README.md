@@ -5,9 +5,10 @@ feel free to open any issues or pull requests and I can get to them when I have 
 
 ## Features
 - fsrs
-- shitty minimal interface
-- shitty search bar
-- open devtools console to see a list of all right answers after the anime is revealed (ctrl + shift + i -> console tab)
+- w minimal interface
+- search bar that's kinda meh
+- hover answer text at the top to see other answers
+- use settings button to filter cards by song type (op, ed, ins, dubbed, rebroadcast) and list status
 
 ## Running
 
